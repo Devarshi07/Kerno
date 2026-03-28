@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-service-config
+  namespace: nexusgrid
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  Cassandra__ContactPoint: "cassandra-svc"
+  Cassandra__Port: "9042"
+  Cassandra__Keyspace: "nexusgrid"

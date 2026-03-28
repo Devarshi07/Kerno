@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: nexusgrid
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ConnectionStrings__Redis: "redis-svc:6379"
+  Jwt__Issuer: "NexusGrid.UserService"
+  Jwt__Audience: "NexusGrid"
+  RateLimit__WindowSeconds: "60"
+  RateLimit__MaxRequests: "100"
+  Cache__DefaultTtlSeconds: "30"
+  ReverseProxy__Clusters__order-service__Destinations__destination1__Address: "http://order-service-svc:8080/"
+  ReverseProxy__Clusters__user-service__Destinations__destination1__Address: "http://user-service-svc:8080/"
+  ReverseProxy__Clusters__notification-service__Destinations__destination1__Address: "http://notification-service-svc:8080/"

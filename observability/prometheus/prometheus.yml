@@ -1,0 +1,43 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files: []
+
+scrape_configs:
+  # Gateway metrics
+  - job_name: "nexusgrid-gateway"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["gateway:8080"]
+        labels:
+          service: gateway
+
+  # Order Service metrics
+  - job_name: "nexusgrid-order-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["order-service:8080"]
+        labels:
+          service: order-service
+
+  # User Service metrics
+  - job_name: "nexusgrid-user-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["user-service:8080"]
+        labels:
+          service: user-service
+
+  # Notification Service metrics
+  - job_name: "nexusgrid-notification-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["notification-service:8080"]
+        labels:
+          service: notification-service
+
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

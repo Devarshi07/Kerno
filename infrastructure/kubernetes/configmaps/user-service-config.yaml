@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-service-config
+  namespace: nexusgrid
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ConnectionStrings__UserDb: "Host=postgres-users-svc;Port=5432;Database=nexusgrid_users;Username=postgres;Password=postgres"
+  Jwt__Issuer: "NexusGrid.UserService"
+  Jwt__Audience: "NexusGrid"
+  Jwt__ExpirationMinutes: "60"

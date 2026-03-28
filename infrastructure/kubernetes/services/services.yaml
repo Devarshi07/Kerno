@@ -1,0 +1,123 @@
+# Infrastructure services — ClusterIP (internal only)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-orders-svc
+  namespace: nexusgrid
+  labels:
+    app: postgres-orders
+spec:
+  selector:
+    app: postgres-orders
+  ports:
+    - port: 5432
+      targetPort: 5432
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-users-svc
+  namespace: nexusgrid
+  labels:
+    app: postgres-users
+spec:
+  selector:
+    app: postgres-users
+  ports:
+    - port: 5432
+      targetPort: 5432
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cassandra-svc
+  namespace: nexusgrid
+  labels:
+    app: cassandra
+spec:
+  selector:
+    app: cassandra
+  ports:
+    - port: 9042
+      targetPort: 9042
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-svc
+  namespace: nexusgrid
+  labels:
+    app: redis
+spec:
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+  type: ClusterIP
+---
+# Application services — ClusterIP (accessed via gateway)
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service-svc
+  namespace: nexusgrid
+  labels:
+    app: order-service
+spec:
+  selector:
+    app: order-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service-svc
+  namespace: nexusgrid
+  labels:
+    app: user-service
+spec:
+  selector:
+    app: user-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service-svc
+  namespace: nexusgrid
+  labels:
+    app: notification-service
+spec:
+  selector:
+    app: notification-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP
+---
+# Gateway — the only externally exposed service
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-svc
+  namespace: nexusgrid
+  labels:
+    app: gateway
+spec:
+  selector:
+    app: gateway
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP

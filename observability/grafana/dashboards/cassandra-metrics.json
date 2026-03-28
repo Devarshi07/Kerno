@@ -1,0 +1,117 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "nexusgrid-cassandra",
+    "title": "NexusGrid — Cassandra Performance",
+    "tags": ["nexusgrid", "cassandra"],
+    "timezone": "browser",
+    "refresh": "10s",
+    "time": { "from": "now-1h", "to": "now" },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Cassandra Write Latency",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(cassandra_write_duration_seconds_bucket{service=\"notification-service\"}[5m]))",
+            "legendFormat": "p95 write latency"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(cassandra_write_duration_seconds_bucket{service=\"notification-service\"}[5m]))",
+            "legendFormat": "p50 write latency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "s" }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Cassandra Read Latency",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(cassandra_read_duration_seconds_bucket{service=\"notification-service\"}[5m]))",
+            "legendFormat": "p95 read latency"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(cassandra_read_duration_seconds_bucket{service=\"notification-service\"}[5m]))",
+            "legendFormat": "p50 read latency"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "s" }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Cassandra Operations Rate",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "targets": [
+          {
+            "expr": "rate(cassandra_operations_total{service=\"notification-service\"}[5m])",
+            "legendFormat": "{{operation}} ops/s"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "ops" }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Cassandra Errors",
+        "type": "timeseries",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "targets": [
+          {
+            "expr": "rate(cassandra_errors_total{service=\"notification-service\"}[5m])",
+            "legendFormat": "{{error_type}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "ops", "color": { "mode": "fixed", "fixedColor": "red" } }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Notification Creation Rate",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 8, "x": 0, "y": 16 },
+        "targets": [
+          {
+            "expr": "rate(cassandra_operations_total{operation=\"create_notification\"}[5m])",
+            "legendFormat": "notifications/s"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Audit Event Creation Rate",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 8, "x": 8, "y": 16 },
+        "targets": [
+          {
+            "expr": "rate(cassandra_operations_total{operation=\"create_audit_event\"}[5m])",
+            "legendFormat": "events/s"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Active Cassandra Connections",
+        "type": "stat",
+        "gridPos": { "h": 4, "w": 8, "x": 16, "y": 16 },
+        "targets": [
+          {
+            "expr": "cassandra_connections_active",
+            "legendFormat": "connections"
+          }
+        ]
+      }
+    ]
+  }
+}

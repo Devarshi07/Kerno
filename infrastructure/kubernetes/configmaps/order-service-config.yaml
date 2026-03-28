@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-service-config
+  namespace: nexusgrid
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ConnectionStrings__OrderDb: "Host=postgres-orders-svc;Port=5432;Database=nexusgrid_orders;Username=postgres;Password=postgres"

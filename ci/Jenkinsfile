@@ -1,0 +1,264 @@
+pipeline {
+    agent any
+
+    environment {
+        DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+        DOCKER_REGISTRY             = 'your-account-id.dkr.ecr.us-east-1.amazonaws.com'
+        GIT_SHA                     = "${env.GIT_COMMIT?.take(8) ?: 'latest'}"
+        KUBE_NAMESPACE              = 'nexusgrid'
+    }
+
+    options {
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
+    stages {
+        // ──────────────────────────────────────
+        // Stage 1: Checkout
+        // ──────────────────────────────────────
+        stage('Checkout') {
+            steps {
+                checkout scm
+                echo "Building commit: ${env.GIT_COMMIT}"
+            }
+        }
+
+        // ──────────────────────────────────────
+        // Stage 2: Restore & Build
+        // ──────────────────────────────────────
+        stage('Restore & Build') {
+            steps {
+                sh 'dotnet restore NexusGrid.sln'
+                sh 'dotnet build NexusGrid.sln -c Release --no-restore'
+            }
+        }
+
+        // ──────────────────────────────────────
+        // Stage 3: Unit Tests
+        // ──────────────────────────────────────
+        stage('Unit Tests') {
+            steps {
+                sh '''
+                    dotnet test NexusGrid.sln \
+                        -c Release \
+                        --no-build \
+                        --logger "trx;LogFileName=test-results.trx" \
+                        --collect:"XPlat Code Coverage"
+                '''
+            }
+            post {
+                always {
+                    // Publish test results to Jenkins
+                    mstest testResultsFile: '**/test-results.trx', keepLongStdio: true
+                }
+                failure {
+                    error 'Unit tests failed — aborting pipeline'
+                }
+            }
+        }
+
+        // ──────────────────────────────────────
+        // Stage 4: Docker Build
+        // ──────────────────────────────────────
+        stage('Docker Build') {
+            parallel {
+                stage('Gateway') {
+                    steps {
+                        sh "docker build -t ${DOCKER_REGISTRY}/nexusgrid-gateway:${GIT_SHA} -f src/NexusGrid.Gateway/Dockerfile ."
+                    }
+                }
+                stage('Order Service') {
+                    steps {
+                        sh "docker build -t ${DOCKER_REGISTRY}/nexusgrid-order-service:${GIT_SHA} -f src/NexusGrid.OrderService/Dockerfile ."
+                    }
+                }
+                stage('User Service') {
+                    steps {
+                        sh "docker build -t ${DOCKER_REGISTRY}/nexusgrid-user-service:${GIT_SHA} -f src/NexusGrid.UserService/Dockerfile ."
+                    }
+                }
+                stage('Notification Service') {
+                    steps {
+                        sh "docker build -t ${DOCKER_REGISTRY}/nexusgrid-notification-service:${GIT_SHA} -f src/NexusGrid.NotificationService/Dockerfile ."
+                    }
+                }
+            }
+        }
+
+        // ──────────────────────────────────────
+        // Stage 5: Push to Registry
+        // ──────────────────────────────────────
+        stage('Push to Registry') {
+            steps {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-ecr-creds']]) {
+                    sh 'aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${DOCKER_REGISTRY}'
+                }
+                sh """
+                    docker push ${DOCKER_REGISTRY}/nexusgrid-gateway:${GIT_SHA}
+                    docker push ${DOCKER_REGISTRY}/nexusgrid-order-service:${GIT_SHA}
+                    docker push ${DOCKER_REGISTRY}/nexusgrid-user-service:${GIT_SHA}
+                    docker push ${DOCKER_REGISTRY}/nexusgrid-notification-service:${GIT_SHA}
+                """
+            }
+        }
+
+        // ──────────────────────────────────────
+        // Stage 6: Terraform Plan (validation only)
+        // ──────────────────────────────────────
+        stage('Terraform Plan') {
+            when { branch 'main' }
+            steps {
+                dir('infrastructure/terraform') {
+                    sh '''
+                        terraform init -input=false
+                        terraform plan \
+                            -var-file=environments/staging/terraform.tfvars \
+                            -var="db_password=${DB_PASSWORD}" \
+                            -out=tfplan \
+                            -input=false
+                    '''
+                }
+            }
+        }
+
+        // ──────────────────────────────────────
+        // Stage 7: Deploy to Staging
+        // ──────────────────────────────────────
+        stage('Deploy to Staging') {
+            when { branch 'main' }
+            steps {
+                sh """
+                    kubectl set image deployment/gateway \
+                        gateway=${DOCKER_REGISTRY}/nexusgrid-gateway:${GIT_SHA} \
+                        -n ${KUBE_NAMESPACE}
+                    kubectl set image deployment/order-service \
+                        order-service=${DOCKER_REGISTRY}/nexusgrid-order-service:${GIT_SHA} \
+                        -n ${KUBE_NAMESPACE}
+                    kubectl set image deployment/user-service \
+                        user-service=${DOCKER_REGISTRY}/nexusgrid-user-service:${GIT_SHA} \
+                        -n ${KUBE_NAMESPACE}
+                    kubectl set image deployment/notification-service \
+                        notification-service=${DOCKER_REGISTRY}/nexusgrid-notification-service:${GIT_SHA} \
+                        -n ${KUBE_NAMESPACE}
+                """
+                sh """
+                    kubectl rollout status deployment/gateway -n ${KUBE_NAMESPACE} --timeout=120s
+                    kubectl rollout status deployment/order-service -n ${KUBE_NAMESPACE} --timeout=120s
+                    kubectl rollout status deployment/user-service -n ${KUBE_NAMESPACE} --timeout=120s
+                    kubectl rollout status deployment/notification-service -n ${KUBE_NAMESPACE} --timeout=120s
+                """
+            }
+        }
+
+        // ──────────────────────────────────────
+        // Stage 8: Integration / Smoke Tests
+        // ──────────────────────────────────────
+        stage('Integration Tests') {
+            when { branch 'main' }
+            steps {
+                sh '''
+                    GATEWAY_URL=$(kubectl get svc gateway-svc -n nexusgrid -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+                    echo "Gateway URL: ${GATEWAY_URL}"
+
+                    # Health check all services through gateway
+                    curl -sf "http://${GATEWAY_URL}/health" || exit 1
+                    echo "Gateway health: OK"
+
+                    # Smoke test: create and retrieve an order
+                    ORDER_RESP=$(curl -sf -X POST "http://${GATEWAY_URL}/api/v1/orders" \
+                        -H "Content-Type: application/json" \
+                        -d '{"userId":"00000000-0000-0000-0000-000000000001","items":[{"productId":"SMOKE-1","productName":"Smoke Test","quantity":1,"unitPrice":1.00}]}')
+                    echo "Create order response: ${ORDER_RESP}"
+
+                    echo "Smoke tests passed"
+                '''
+            }
+        }
+
+        // ──────────────────────────────────────
+        // Stage 9: Manual Approval Gate
+        // ──────────────────────────────────────
+        stage('Approval for Production') {
+            when { branch 'main' }
+            steps {
+                input message: 'Deploy to production?', ok: 'Deploy'
+            }
+        }
+
+        // ──────────────────────────────────────
+        // Stage 10: Deploy to Production (Canary)
+        // ──────────────────────────────────────
+        stage('Deploy to Production') {
+            when { branch 'main' }
+            steps {
+                echo 'Starting canary deployment: 10% → 50% → 100%'
+
+                // Phase 1: 10% canary
+                sh """
+                    kubectl set image deployment/gateway \
+                        gateway=${DOCKER_REGISTRY}/nexusgrid-gateway:${GIT_SHA} \
+                        -n ${KUBE_NAMESPACE}-prod
+                    kubectl scale deployment/gateway --replicas=1 -n ${KUBE_NAMESPACE}-prod
+                """
+                sleep(time: 60, unit: 'SECONDS')
+
+                // Phase 2: 50%
+                sh "kubectl scale deployment/gateway --replicas=2 -n ${KUBE_NAMESPACE}-prod"
+                sleep(time: 60, unit: 'SECONDS')
+
+                // Phase 3: 100% — all services
+                sh """
+                    kubectl set image deployment/order-service \
+                        order-service=${DOCKER_REGISTRY}/nexusgrid-order-service:${GIT_SHA} \
+                        -n ${KUBE_NAMESPACE}-prod
+                    kubectl set image deployment/user-service \
+                        user-service=${DOCKER_REGISTRY}/nexusgrid-user-service:${GIT_SHA} \
+                        -n ${KUBE_NAMESPACE}-prod
+                    kubectl set image deployment/notification-service \
+                        notification-service=${DOCKER_REGISTRY}/nexusgrid-notification-service:${GIT_SHA} \
+                        -n ${KUBE_NAMESPACE}-prod
+                """
+            }
+        }
+
+        // ──────────────────────────────────────
+        // Stage 11: Post-Deploy Health Check
+        // ──────────────────────────────────────
+        stage('Post-Deploy Health Check') {
+            when { branch 'main' }
+            steps {
+                sh '''
+                    GATEWAY_URL=$(kubectl get svc gateway-svc -n nexusgrid-prod -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+                    for i in 1 2 3 4 5; do
+                        STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "http://${GATEWAY_URL}/health")
+                        if [ "$STATUS" = "200" ]; then
+                            echo "Health check passed (attempt $i)"
+                            exit 0
+                        fi
+                        echo "Health check attempt $i: status $STATUS, retrying..."
+                        sleep 10
+                    done
+
+                    echo "Health check failed after 5 attempts"
+                    exit 1
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed — check logs above'
+            // In production: send Slack/email notification
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

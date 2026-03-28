@@ -165,6 +165,21 @@ services:
     restart: unless-stopped
 
   # ──────────────────────────────────────────────
+  # Frontend
+  # ──────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nexusgrid-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - gateway
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────
   # Observability
   # ──────────────────────────────────────────────
 

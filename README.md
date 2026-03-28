@@ -41,6 +41,7 @@ A production-grade cloud-native microservices platform built with .NET, demonstr
 | Orchestration | Kubernetes (Minikube / EKS) |
 | IaC | Terraform (AWS — VPC, EKS, RDS, Keyspaces, ElastiCache) |
 | CI/CD | Jenkins + GitHub Actions |
+| Frontend | React 18, Vite, Tailwind CSS, React Router, Recharts |
 | Observability | Prometheus, Grafana, Serilog |
 | Testing | xUnit, Moq, FluentAssertions |
 
@@ -48,6 +49,7 @@ A production-grade cloud-native microservices platform built with .NET, demonstr
 
 ```
 nexusgrid/
+├── frontend/                          # React SPA (Vite + Tailwind)
 ├── src/
 │   ├── NexusGrid.Gateway/              # API Gateway (YARP + Redis)
 │   ├── NexusGrid.OrderService/         # Order Service (PostgreSQL)
@@ -91,6 +93,7 @@ docker-compose up --build
 
 | Service | URL |
 |---------|-----|
+| Frontend (React) | http://localhost:8080 |
 | Gateway (API entry) | http://localhost:5000 |
 | Order Service | http://localhost:5101 |
 | User Service | http://localhost:5102 |

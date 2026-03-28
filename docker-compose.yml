@@ -11,7 +11,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres_orders_data:/var/lib/postgresql/data
     healthcheck:
@@ -28,7 +28,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5433:5432"
+      - "5435:5432"
     volumes:
       - postgres_users_data:/var/lib/postgresql/data
     healthcheck:
@@ -61,15 +61,7 @@ services:
     depends_on:
       cassandra:
         condition: service_healthy
-    entrypoint: >
-      bash -c "
-        echo 'Creating keyspace...' &&
-        cqlsh cassandra -e \"
-          CREATE KEYSPACE IF NOT EXISTS nexusgrid
-          WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
-        \" &&
-        echo 'Keyspace created successfully.'
-      "
+    entrypoint: ["bash", "-c", "echo 'Creating keyspace...' && cqlsh cassandra -e \"CREATE KEYSPACE IF NOT EXISTS nexusgrid WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};\" && echo 'Keyspace created successfully.'"]
     restart: "no"
 
   redis:
@@ -146,7 +138,7 @@ services:
       dockerfile: src/NexusGrid.Gateway/Dockerfile
     container_name: nexusgrid-gateway
     ports:
-      - "5000:8080"
+      - "5010:8080"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Redis: "redis:6379"

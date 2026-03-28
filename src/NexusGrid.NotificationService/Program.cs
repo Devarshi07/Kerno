@@ -44,7 +44,7 @@ builder.Services.AddSingleton<Cassandra.ISession>(sp =>
     return cluster.Connect();
 });
 
-builder.Services.AddScoped<ICassandraRepository, CassandraRepository>();
+builder.Services.AddSingleton<ICassandraRepository, CassandraRepository>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 
 builder.Services.AddControllers();

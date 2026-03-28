@@ -58,7 +58,7 @@ public sealed class OrdersController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var result = await _orderService.CreateOrderAsync(request, cancellationToken);
-        return CreatedAtAction(nameof(GetOrderByIdAsync), new { id = result.Id }, result);
+        return CreatedAtAction("GetOrderById", new { id = result.Id }, result);
     }
 
     [HttpPatch("{id:guid}/status")]

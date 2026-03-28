@@ -24,7 +24,8 @@ public sealed class AuthMiddleware
         "/api/v1/auth/login",
         "/api/v1/auth/register",
         "/health",
-        "/swagger"
+        "/swagger",
+        "/metrics"
     ];
 
     public AuthMiddleware(RequestDelegate next, ILogger<AuthMiddleware> logger)
